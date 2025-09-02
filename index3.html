@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MedTrack — Medication Reminder</title>
+  <meta name="description" content="Keep track of medications, doses and get timely reminders." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f7f9fc; --card:#fff; --muted:#6b7280; --accent:#10b981; --danger:#ef4444; --glass: rgba(255,255,255,0.6);
+      --shadow: 0 8px 28px rgba(15,23,42,0.06);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial; background:linear-gradient(180deg,#eef2ff 0%,var(--bg) 60%); color:#0f172a}
+    .wrap{max-width:1000px;margin:20px auto;padding:18px}
+    header{display:flex;gap:16px;align-items:center}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#34d399,#60a5fa);display:grid;place-items:center;color:white;font-weight:700;font-size:20px;box-shadow:0 8px 24px rgba(16,185,129,0.18)}
+    h1{margin:0;font-size:1.3rem}
+    p.lead{margin:0;color:var(--muted);font-size:.95rem}
+
+    /* Composer */
+    .composer{margin-top:18px;background:var(--card);padding:14px;border-radius:14px;box-shadow:var(--shadow);display:grid;grid-template-columns:1fr 1fr 1fr 120px;gap:10px;align-items:end}
+    label{font-weight:600;font-size:.85rem}
+    input,select{width:100%;padding:9px;border-radius:10px;border:1px solid #e6eef8;background:#fbfdff}
+    .small{font-size:.85rem}
+    .addBtn{background:linear-gradient(90deg,#34d399,#0ea5e9);color:white;border:none;padding:10px;border-radius:10px;font-weight:700;cursor:pointer}
+
+    /* List */
+    .board{display:grid;grid-template-columns:1fr 320px;gap:14px;margin-top:16px}
+    .panel{background:var(--card);padding:12px;border-radius:12px;box-shadow:var(--shadow)}
+    .panel h2{margin:0 0 8px 0;font-size:1rem}
+
+    /* Medication list */
+    .med-list{display:flex;flex-direction:column;gap:10px}
+    .med{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;border:1px solid #eef3fb}
+    .med .meta{flex:1}
+    .med .name{font-weight:700}
+    .med .dose{color:var(--muted);font-size:.9rem}
+    .med .times{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+    .pill{padding:6px 8px;border-radius:999px;background:#f1f8f6;border:1px solid #e7f7ef;font-weight:600;color:#065f46;font-size:.85rem}
+    .controls{display:flex;gap:6px}
+    .iconBtn{border:none;background:transparent;padding:8px;border-radius:8px;cursor:pointer}
+    .iconBtn:hover{background:#f3f4f6}
+
+    /* Right column: today schedule & history */
+    .schedule{display:flex;flex-direction:column;gap:8px}
+    .slot{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;border:1px dashed #eef2ff}
+    .time{min-width:58px;font-weight:700}
+    .takeBtn{padding:6px 10px;border-radius:8px;background:linear-gradient(90deg,#60a5fa,#34d399);color:white;border:none}
+
+    /* small utilities */
+    footer{margin-top:16px;text-align:center;color:var(--muted);font-size:.9rem}
+
+    /* responsive */
+    @media (max-width:900px){ .composer{grid-template-columns:1fr; } .board{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">MT</div>
+      <div>
+        <h1>MedTrack</h1>
+        <p class="lead">Track medications, get timely reminders, and log when doses are taken.</p>
+      </div>
+    </header>
+
+    <!-- Composer: add medication -->
+    <section class="composer" aria-label="Add medication">
+      <div>
+        <label for="medName">Medicine name</label>
+        <input id="medName" placeholder="e.g., Metformin" />
+      </div>
+      <div>
+        <label for="medDose">Dose</label>
+        <input id="medDose" placeholder="e.g., 500 mg" />
+      </div>
+      <div>
+        <label for="medTimes">Times per day or specific times</label>
+        <select id="medTimes">
+          <option value="1">Once a day</option>
+          <option value="2">Twice a day</option>
+          <option value="3">Thrice a day</option>
+          <option value="custom">Custom times...</option>
+        </select>
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button id="addMed" class="addBtn">Add Medication</button>
+      </div>
+
+      <!-- hidden custom time inputs will be injected dynamically -->
+    </section>
+
+    <div class="board">
+      <div class="panel">
+        <h2>Active medications</h2>
+        <div id="medList" class="med-list" aria-live="polite"></div>
+      </div>
+
+      <aside class="panel">
+        <h2>Today's schedule</h2>
+        <div id="schedule" class="schedule"></div>
+        <hr />
+        <h2>Recent log</h2>
+        <div id="log" style="max-height:260px;overflow:auto;margin-top:8px"></div>
+      </aside>
+    </div>
+
+    <footer>
+      <small>Notes: Notifications require permission and work best when the page is open. For background reminders consider adding the app to home screen (mobile) or using calendar/phone alarms for guaranteed alerts.</small>
+    </footer>
+  </div>
+
+  <script>
+    // ======= Simple Medication Reminder App (no backend) ======
+    // Data shape:
+    // med = { id, name, dose, times: ["09:00","21:00"], active:true }
+    // log entries: {medId, name, timeISO, action: 'taken' }
+
+    const medListEl = document.getElementById('medList');
+    const scheduleEl = document.getElementById('schedule');
+    const logEl = document.getElementById('log');
+
+    const nameIn = document.getElementById('medName');
+    const doseIn = document.getElementById('medDose');
+    const timesSel = document.getElementById('medTimes');
+    const addBtn = document.getElementById('addMed');
+
+    let meds = JSON.parse(localStorage.getItem('medtrack.meds') || '[]');
+    let logs = JSON.parse(localStorage.getItem('medtrack.logs') || '[]');
+
+    // In-memory reminders (timeouts) so we can clear/reschedule
+    let scheduledTimeouts = [];
+
+    // Utility: persist
+    function persist(){ localStorage.setItem('medtrack.meds', JSON.stringify(meds)); localStorage.setItem('medtrack.logs', JSON.stringify(logs)); }
+
+    // Utility: ID generator
+    function id(){ return 'm_'+Math.random().toString(36).slice(2,9); }
+
+    // Time helpers
+    function nowISO(){ return new Date().toISOString(); }
+    function parseTimeToToday(timeStr){ // "HH:MM" -> Date object for next occurrence today/tomorrow
+      const [h,m] = timeStr.split(':').map(Number);
+      const d = new Date(); d.setHours(h, m, 0, 0);
+      return d;
+    }
+
+    function isTimePassedToday(timeStr){ return parseTimeToToday(timeStr) <= new Date(); }
+
+    // Register/ask for Notification permission
+    async function ensureNotificationPermission(){
+      if(!('Notification' in window)) return false;
+      if(Notification.permission === 'granted') return true;
+      if(Notification.permission !== 'denied'){
+        const p = await Notification.requestPermission();
+        return p === 'granted';
+      }
+      return false;
+    }
+
+    // Tiny audio cue using WebAudio
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = AudioCtx ? new AudioCtx() : null;
+    function cueSound(){ if(!audioCtx) return; const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type='sine'; o.frequency.value=640; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.0001, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime+0.02); o.start(); o.stop(audioCtx.currentTime+0.18); }
+
+    // Notification + UI reminder function
+    async function notifyReminder(med, timeStr){
+      const title = `Time to take ${med.name}`;
+      const opts = { body: `${med.name} — ${med.dose} at ${timeStr}`, tag: med.id, renotify:true };
+      if(await ensureNotificationPermission()){
+        try{ new Notification(title, opts); }
+        catch(e){ console.warn('Notification failed', e); }
+      }
+      cueSound();
+      // also flash an alert banner on the page
+      showTakePrompt(med, timeStr);
+    }
+
+    // Show an inline prompt in schedule to mark taken / snooze
+    function showTakePrompt(med, timeStr){
+      // create a temporary element in schedule to draw attention
+      const s = document.createElement('div'); s.className='slot';
+      s.innerHTML = `<div style="flex:1"><strong>${timeStr}</strong><div style="font-size:.9rem;color:var(--muted)">${med.name} • ${med.dose}</div></div>`;
+      const btn = document.createElement('button'); btn.className='takeBtn'; btn.textContent='Mark taken';
+      const snooze = document.createElement('button'); snooze.className='iconBtn'; snooze.textContent='Snooze 10m';
+      s.appendChild(btn); s.appendChild(snooze);
+      scheduleEl.prepend(s);
+
+      btn.addEventListener('click', ()=>{ markTaken(med.id); s.remove(); });
+      snooze.addEventListener('click', ()=>{ snoozeReminder(med, 10); s.remove(); });
+
+      // auto-remove prompt after 8 sec to avoid clutter
+      setTimeout(()=>{ try{ s.remove(); }catch(e){} }, 8000);
+    }
+
+    // Snooze: schedule in minutes
+    function snoozeReminder(med, minutes){
+      const when = new Date(Date.now() + minutes*60_000);
+      const to = setTimeout(()=> notifyReminder(med, when.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})), when - Date.now());
+      scheduledTimeouts.push(to);
+    }
+
+    // Mark taken -> add log
+    function markTaken(medId){
+      const med = meds.find(m=>m.id===medId); if(!med) return;
+      logs.unshift({ medId, name:med.name, dose:med.dose, time: nowISO(), action:'taken' });
+      if(logs.length>200) logs.pop();
+      persist(); renderLog(); renderSchedule();
+    }
+
+    // Render functions
+    function renderMeds(){
+      medListEl.innerHTML='';
+      if(meds.length===0) medListEl.innerHTML='<div style="color:var(--muted);">No medications. Add one above.</div>';
+      for(const m of meds){
+        const el = document.createElement('div'); el.className='med';
+        const meta = document.createElement('div'); meta.className='meta';
+        meta.innerHTML = `<div class="name">${escape(m.name)}</div><div class="dose">${escape(m.dose)}</div><div class="times"></div>`;
+        const timesWrap = meta.querySelector('.times');
+        m.times.forEach(t=>{ const p = document.createElement('div'); p.className='pill'; p.textContent = t; timesWrap.appendChild(p); });
+
+        const controls = document.createElement('div'); controls.className='controls';
+        const editBtn = document.createElement('button'); editBtn.className='iconBtn'; editBtn.title='Edit'; editBtn.textContent='✏️';
+        const delBtn = document.createElement('button'); delBtn.className='iconBtn'; delBtn.title='Delete'; delBtn.textContent='🗑️';
+        const toggleBtn = document.createElement('button'); toggleBtn.className='iconBtn'; toggleBtn.title='Disable/Enable'; toggleBtn.textContent = m.active? '🟢' : '⚪';
+        controls.append(editBtn, delBtn, toggleBtn);
+
+        el.append(meta, controls);
+        medListEl.appendChild(el);
+
+        editBtn.addEventListener('click', ()=> editMed(m.id));
+        delBtn.addEventListener('click', ()=>{ if(confirm('Delete this medication?')){ meds = meds.filter(x=>x.id!==m.id); persist(); renderAll(); } });
+        toggleBtn.addEventListener('click', ()=>{ m.active = !m.active; persist(); renderAll(); });
+      }
+    }
+
+    function renderSchedule(){
+      // Build today's schedule from meds
+      const todaySlots = [];
+      const now = new Date();
+      meds.filter(m=>m.active).forEach(m=>{
+        m.times.forEach(t=>{
+          // compute today's datetime for the time
+          const d = parseTimeToToday(t);
+          let upcoming = d; // may be earlier today
+          if(d < new Date()){
+            // if already passed => still include but mark as passed
+          }
+          todaySlots.push({ med:m, time:t, dateObj: d });
+        });
+      });
+      // sort by time
+      todaySlots.sort((a,b)=>a.dateObj - b.dateObj);
+
+      scheduleEl.innerHTML='';
+      for(const s of todaySlots){
+        const slot = document.createElement('div'); slot.className='slot';
+        const t = s.dateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        const txt = document.createElement('div'); txt.style.flex='1'; txt.innerHTML = `<div class="time">${t}</div><div style="font-size:.9rem;color:var(--muted)">${escape(s.med.name)} • ${escape(s.med.dose)}</div>`;
+        const takeBtn = document.createElement('button'); takeBtn.className='takeBtn'; takeBtn.textContent='Mark taken';
+        takeBtn.addEventListener('click', ()=>{ markTaken(s.med.id); });
+        slot.append(txt, takeBtn);
+        scheduleEl.appendChild(slot);
+      }
+
+      if(todaySlots.length===0) scheduleEl.innerHTML='<div style="color:var(--muted)">No scheduled doses for today.</div>';
+    }
+
+    function renderLog(){
+      logEl.innerHTML='';
+      if(logs.length===0) logEl.innerHTML='<div style="color:var(--muted)">No recent log entries.</div>';
+      logs.slice(0,60).forEach(l=>{
+        const div = document.createElement('div'); div.style.padding='8px 6px'; div.style.borderBottom='1px dashed #f1f5f9';
+        const t = new Date(l.time).toLocaleString();
+        div.innerHTML = `<div style="font-weight:700">${escape(l.name)} • ${escape(l.dose)}</div><div style="color:var(--muted);font-size:.9rem">${l.action} — ${t}</div>`;
+        logEl.appendChild(div);
+      });
+    }
+
+    // Edit medication (simple prompt flow)
+    function editMed(id){
+      const m = meds.find(x=>x.id===id); if(!m) return;
+      const newName = prompt('Medicine name', m.name); if(newName==null) return; m.name = newName.trim() || m.name;
+      const newDose = prompt('Dose', m.dose); if(newDose==null) return; m.dose = newDose.trim() || m.dose;
+      // times (CSV of HH:MM)
+      const timesCSV = prompt('Times (comma separated, HH:MM) e.g. 08:00,20:00', m.times.join(',')); if(timesCSV==null) return;
+      const arr = timesCSV.split(',').map(s=>s.trim()).filter(Boolean);
+      m.times = arr;
+      persist(); renderAll();
+    }
+
+    // Add medication flow
+    timesSel.addEventListener('change', ()=>{
+      if(timesSel.value==='custom'){
+        // open an input prompt for times
+        const custom = prompt('Enter times in 24h format, comma separated (e.g. 08:00, 13:30, 21:00)');
+        if(custom==null){ timesSel.value='1'; return; }
+        timesSel.dataset.custom = custom;
+      }
+    });
+
+    addBtn.addEventListener('click', ()=>{
+      const name = nameIn.value.trim(); const dose = doseIn.value.trim(); if(!name){ alert('Please provide medicine name'); nameIn.focus(); return; }
+      let times = [];
+      if(timesSel.value === 'custom'){
+        const csv = timesSel.dataset.custom || prompt('Enter times (HH:MM)'); if(!csv){ alert('No times set'); return; }
+        times = csv.split(',').map(s=>s.trim()).filter(Boolean);
+      } else {
+        const v = Number(timesSel.value);
+        // distribute times through the day (simple heuristics)
+        if(v===1) times = ['09:00'];
+        if(v===2) times = ['09:00','21:00'];
+        if(v===3) times = ['08:00','14:00','20:00'];
+      }
+      const med = { id: id(), name, dose: dose||'—', times, active:true };
+      meds.push(med); persist(); renderAll(); nameIn.value=''; doseIn.value=''; timesSel.value='1'; delete timesSel.dataset.custom;
+      scheduleRemindersForMed(med);
+    });
+
+    // Scheduling engine: scans meds and schedules timeouts for upcoming reminders on this device
+    function clearScheduled(){ scheduledTimeouts.forEach(t=>clearTimeout(t)); scheduledTimeouts = []; }
+    function scheduleAllReminders(){ clearScheduled();
+      const lookAheadMs = 24*60*60*1000; // schedule reminders for next 24 hours
+      const now = Date.now();
+      meds.filter(m=>m.active).forEach(m=>{
+        m.times.forEach(timeStr=>{
+          const d = parseTimeToToday(timeStr);
+          let when = d.getTime();
+          // if time already passed today, optionally schedule for tomorrow
+          if(when < now) when += 24*60*60*1000;
+          const delay = when - now;
+          const to = setTimeout(()=> notifyReminder(m, timeStr), delay);
+          scheduledTimeouts.push(to);
+        });
+      });
+    }
+    function scheduleRemindersForMed(med){ med.times.forEach(t=>{ const d=parseTimeToToday(t); let when=d.getTime(); if(when < Date.now()) when+=24*60*60*1000; const to=setTimeout(()=> notifyReminder(med, t), when-Date.now()); scheduledTimeouts.push(to); }); }
+
+    // escape helper
+    function escape(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Render all and schedule
+    function renderAll(){ renderMeds(); renderSchedule(); renderLog(); scheduleAllReminders(); }
+
+    // Initial load
+    renderAll();
+
+    // For usability: allow marking taken by clicking schedule items (delegation)
+    scheduleEl.addEventListener('click', e=>{
+      const btn = e.target.closest('.takeBtn'); if(!btn) return; // handled in creation
+    });
+
+    // Ask for notification permission up front (good UX in med apps)
+    (async ()=>{ await ensureNotificationPermission(); })();
+
+    // Expose some functions for debugging in console
+    window.MedTrack = { meds, logs, persist, renderAll };
+
+  </script>
+</body>
+</html>
