@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Nature's Plan 🌱</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      color: #fff;
+      background: linear-gradient(-45deg, #3cb371, #6b8e23, #228b22, #2e8b57);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      min-height: 100vh;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 3rem;
+      margin-top: 20px;
+      animation: fadeIn 2s ease-in-out;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+      animation: fadeIn 3s ease-in-out;
+    }
+
+    .input-container {
+      display: flex;
+      justify-content: center;
+      margin: 20px;
+    }
+
+    input {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      width: 300px;
+      outline: none;
+    }
+
+    button {
+      margin-left: 10px;
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: none;
+      background: #2e8b57;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.3s;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+      background: #3cb371;
+    }
+
+    .columns {
+      display: flex;
+      justify-content: space-around;
+      padding: 20px;
+    }
+
+    .column {
+      width: 30%;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0px 4px 15px rgba(0,0,0,0.2);
+      animation: fadeInUp 1.5s ease;
+      min-height: 300px;
+    }
+
+    .column h2 {
+      text-align: center;
+    }
+
+    .task {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 12px;
+      animation: grow 0.5s ease-in-out;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .task:hover {
+      transform: scale(1.05);
+      background: rgba(255,255,255,0.3);
+    }
+
+    @keyframes fadeIn {
+      from {opacity: 0;}
+      to {opacity: 1;}
+    }
+
+    @keyframes fadeInUp {
+      from {opacity: 0; transform: translateY(30px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+
+    @keyframes grow {
+      from {transform: scale(0.8);}
+      to {transform: scale(1);}
+    }
+
+    .background-plants {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      z-index: -1;
+      opacity: 0.2;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>🌿 Nature's Plan</h1>
+  <p class="subtitle">Organize your tasks like planting seeds 🌱</p>
+
+  <div class="input-container">
+    <input id="taskInput" type="text" placeholder="e.g., Water the plants...">
+    <button onclick="addTask()">Plant it!</button>
+  </div>
+
+  <div class="columns">
+    <div class="column" id="seedlings">
+      <h2>Seedlings 🌱</h2>
+      <p class="empty">All clear!</p>
+    </div>
+    <div class="column" id="growing">
+      <h2>Growing 🌿</h2>
+      <p class="empty">All clear!</p>
+    </div>
+    <div class="column" id="harvested">
+      <h2>Harvested 🌳</h2>
+      <button onclick="clearAll()">Clear All</button>
+      <p class="empty">All clear!</p>
+    </div>
+  </div>
+
+  <img class="background-plants" src="https://images.unsplash.com/photo-1501004318641-b39e6451bec6?ixlib=rb-4.0.3&q=80&w=2000" />
+
+  <script>
+    function addTask() {
+      let input = document.getElementById("taskInput");
+      let taskText = input.value.trim();
+      if (taskText === "") return;
+      
+      let task = document.createElement("div");
+      task.className = "task";
+      task.textContent = taskText;
+
+      // Task progression on click
+      task.addEventListener("click", () => {
+        if (task.parentElement.id === "seedlings") {
+          document.getElementById("growing").appendChild(task);
+        } else if (task.parentElement.id === "growing") {
+          document.getElementById("harvested").appendChild(task);
+        } else {
+          task.remove();
+        }
+        updateEmptyMessages();
+      });
+
+      document.getElementById("seedlings").appendChild(task);
+      input.value = "";
+      updateEmptyMessages();
+    }
+
+    function clearAll() {
+      document.querySelectorAll(".task").forEach(task => task.remove());
+      updateEmptyMessages();
+    }
+
+    function updateEmptyMessages() {
+      ["seedlings", "growing", "harvested"].forEach(id => {
+        let column = document.getElementById(id);
+        let tasks = column.querySelectorAll(".task");
+        let emptyMsg = column.querySelector(".empty");
+        emptyMsg.style.display = tasks.length === 0 ? "block" : "none";
+      });
+    }
+  </script>
+</body>
+</html>
