@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Garden Tasks — Planting To‑Do</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg-1:#a7f3d0; /* mint */
+      --bg-2:#bfdbfe; /* sky */
+      --bg-3:#fde68a; /* sand */
+      --leaf:#22c55e;
+      --ink:#0f172a; /* slate-900 */
+      --muted:#475569; /* slate-600 */
+      --panel: rgba(255,255,255,.55);
+      --panel-strong: rgba(255,255,255,.85);
+      --ring:#34d399;
+      --seed:#8b5cf6; /* violet */
+      --sprout:#22c55e; /* green */
+      --tree:#0ea5e9; /* sky */
+      --danger:#ef4444;
+      --warning:#f59e0b;
+    }
+
+    /* ====== Reset & Base ====== */
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; color:var(--ink); font-family:"Nunito", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      overflow-x:hidden; background:#e6fffb; 
+    }
+    h1,h2,h3{font-family:"Poppins", sans-serif; margin:0}
+    button{font-family:inherit}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+    /* ====== Animated Background (gradient blobs + waves) ====== */
+    .bg{
+      position:fixed; inset:0; z-index:-2; overflow:hidden; background: radial-gradient(1200px 600px at 10% 10%, #ffffffaa, transparent 60%),
+        radial-gradient(900px 500px at 90% 20%, #ffffff66, transparent 70%);
+    }
+    .blob{position:absolute; filter:blur(60px); opacity:.55; mix-blend-mode:screen; border-radius:50%}
+    .b1{background:var(--bg-1); width:60vmax; height:60vmax; left:-10vmax; top:-10vmax; animation:float1 22s linear infinite alternate}
+    .b2{background:var(--bg-2); width:55vmax; height:55vmax; right:-15vmax; top:10vmax; animation:float2 28s linear infinite alternate}
+    .b3{background:var(--bg-3); width:70vmax; height:70vmax; left:10vmax; bottom:-20vmax; animation:float3 30s linear infinite alternate}
+    @keyframes float1{to{transform:translate(8vmax,6vmax) rotate(20deg)}}
+    @keyframes float2{to{transform:translate(-6vmax,4vmax) rotate(-25deg)}}
+    @keyframes float3{to{transform:translate(6vmax,-8vmax) rotate(10deg)}}
+
+    /* Subtle animated wave at bottom */
+    .waves{ position:fixed; left:0; right:0; bottom:-1px; height:180px; z-index:-1; }
+    .wave{ position:absolute; left:-10%; width:120%; height:100%; opacity:.35; background: linear-gradient(180deg, #ffffff00, #ffffffaa); border-radius:50% 50% 0 0; animation: wave 12s ease-in-out infinite; transform-origin:bottom; }
+    .wave:nth-child(2){ animation-duration: 16s; opacity:.45; }
+    .wave:nth-child(3){ animation-duration: 20s; opacity:.55; }
+    @keyframes wave { 0%,100%{ transform:translateX(0) scaleY(1);} 50%{ transform:translateX(-3%) scaleY(1.15);} }
+
+    /* ====== Floating Leaves (Canvas overlay) ====== */
+    #leavesCanvas{ position:fixed; inset:0; pointer-events:none; z-index:-1 }
+
+    /* ====== Layout ====== */
+    header{
+      display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; position:sticky; top:0; backdrop-filter: blur(8px);
+      background:linear-gradient( to right, var(--panel), transparent ); border-bottom:1px solid #ffffff88;
+    }
+    .brand{ display:flex; gap:.75rem; align-items:center }
+    .logo{ width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background: linear-gradient(135deg, #34d399, #60a5fa); color:white; font-size:22px; box-shadow:0 6px 18px #22c55e55 }
+    .title{ line-height:1.1 }
+    .title h1{ font-size:1.5rem }
+    .title p{ margin:0; color:var(--muted) }
+
+    .actions{ margin-left:auto; display:flex; gap:.5rem; align-items:center }
+    .btn{ padding:.6rem .9rem; border-radius:14px; border:1px solid #0000; background: var(--panel-strong); box-shadow: 0 8px 24px #00000014; cursor:pointer; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease }
+    .btn:hover{ transform:translateY(-2px); box-shadow:0 12px 28px #0000001f; border-color:#00000016 }
+    .btn.secondary{ background:transparent; border-color:#ffffffaa }
+    .btn.danger{ background: #fff3f3; border-color:#ffe0e0; color:#b91c1c }
+    .toggle{ display:flex; align-items:center; gap:.5rem; padding:.4rem .75rem; border-radius:999px; border:1px solid #ffffffaa; background:var(--panel) }
+
+    main{ padding:1.25rem; max-width:1200px; margin:0 auto }
+
+    /* ====== Create Task Card ====== */
+    .composer{
+      display:grid; grid-template-columns: 1.25fr .9fr .9fr auto; gap:.75rem; background:var(--panel-strong); padding:1rem; border-radius:20px; box-shadow:0 12px 30px #00000018; align-items:end;
+    }
+    .field{ display:flex; flex-direction:column; gap:.35rem }
+    .field label{ font-weight:700; font-size:.9rem }
+    .field input, .field select{ padding:.7rem .8rem; border-radius:12px; border:1px solid #e2e8f0; background: white; outline:none; transition: box-shadow .15s ease, border-color .15s ease }
+    .field input:focus, .field select:focus{ border-color:var(--ring); box-shadow: 0 0 0 3px #34d39933 }
+    .add-btn{ padding:.9rem 1.1rem; border-radius:14px; font-weight:700; background:linear-gradient(135deg,#34d399,#60a5fa); color:white; border:none; cursor:pointer; box-shadow:0 10px 26px #22c55e55; transition: transform .15s ease }
+    .add-btn:hover{ transform:translateY(-2px) }
+
+    /* ====== Kanban Board ====== */
+    .board{ display:grid; grid-template-columns: repeat(3, 1fr); gap:1rem; margin-top:1rem }
+    .column{ background:var(--panel-strong); border-radius:20px; padding:1rem; box-shadow:0 12px 30px #00000014; min-height:260px; display:flex; flex-direction:column }
+    .col-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem }
+    .pill{ display:inline-flex; align-items:center; gap:.5rem; padding:.35rem .7rem; border-radius:999px; font-weight:700; font-size:.9rem }
+    .seed{ background:#f3e8ff; color:#6d28d9 }
+    .grow{ background:#dcfce7; color:#166534 }
+    .harv{ background:#e0f2fe; color:#0369a1 }
+
+    .dropzone{ flex:1; display:grid; grid-auto-rows:1fr; align-content:start; gap:.75rem; padding:.2rem }
+    .dropzone.dragover{ outline: 2px dashed #34d399; outline-offset: 6px; border-radius:16px; background:#34d3990d }
+
+    /* ====== Task Card ====== */
+    .card{ background:white; border:1px solid #e2e8f0; border-radius:16px; padding:.75rem .8rem; box-shadow:0 10px 24px #0000000f; display:flex; flex-direction:column; gap:.5rem; cursor:grab; transition: transform .12s ease, box-shadow .12s ease }
+    .card:hover{ transform: translateY(-3px); box-shadow:0 14px 28px #0000001a }
+    .card.dragging{ opacity:.7; transform: rotate(1deg) scale(1.02) }
+    .row{ display:flex; align-items:center; gap:.5rem; justify-content:space-between }
+    .titleRow{ gap:.6rem }
+    .plant{ font-size:1.2rem }
+    .titleTxt{ font-weight:800; font-size:1rem }
+    .meta{ font-size:.85rem; color:var(--muted); display:flex; gap:.6rem; align-items:center; flex-wrap:wrap }
+    .badge{ padding:.12rem .45rem; border-radius:8px; background:#f1f5f9; border:1px solid #e2e8f0; font-weight:700 }
+    .progress{ height:6px; border-radius:999px; background:#f1f5f9; overflow:hidden }
+    .progress > span{ display:block; height:100%; width:0; background: linear-gradient(90deg, #22c55e, #60a5fa) }
+
+    .card .controls{ display:flex; gap:.35rem; align-items:center }
+    .iconbtn{ border:none; background:transparent; padding:.35rem; border-radius:10px; cursor:pointer; transition: background .12s ease, transform .12s ease }
+    .iconbtn:hover{ background:#f1f5f9; transform: translateY(-1px) }
+    .iconbtn.danger:hover{ background:#fee2e2; color:#b91c1c }
+
+    /* Edit Mode */
+    .editWrap{ display:none; gap:.4rem }
+    .card.editing .displayWrap{ display:none }
+    .card.editing .editWrap{ display:flex }
+    .editWrap input, .editWrap select{ padding:.4rem .5rem; border-radius:10px; border:1px solid #e2e8f0 }
+
+    /* ====== Footer & Credits ====== */
+    footer{ text-align:center; color:#334155; padding:1rem; font-size:.9rem }
+    footer img{ height:48px; }
+
+    /* ====== Responsive ====== */
+    @media (max-width: 960px){
+      .composer{ grid-template-columns: 1fr 1fr; }
+      .board{ grid-template-columns: 1fr }
+      header{ flex-wrap:wrap }
+    }
+  </style>
+</head>
+<body>
+  <!-- Animated background layers -->
+  <div class="bg">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+  </div>
+  <canvas id="leavesCanvas"></canvas>
+  <div class="waves">
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+  </div>
+
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">🌿</div>
+      <div class="title">
+        <h1>Garden Tasks</h1>
+        <p>Gamified planting-themed To‑Do (Seedlings → Growing → Harvested)</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <label class="toggle" title="Sound effects">
+        <input id="soundToggle" type="checkbox" checked />
+        <span>Sound</span>
+      </label>
+      <button id="clearAll" class="btn danger" title="Remove all tasks">Clear All</button>
+      <a class="btn secondary" href="https://undraw.co/illustrations" target="_blank" rel="noreferrer">Free Illustrations ↗</a>
+      <a class="btn secondary" href="https://www.pexels.com/search/plant/" target="_blank" rel="noreferrer">Plant Photos ↗</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Composer -->
+    <section class="composer" aria-label="Create a new task">
+      <div class="field">
+        <label for="taskTitle">Task</label>
+        <input id="taskTitle" type="text" placeholder="e.g., Water succulents" />
+      </div>
+      <div class="field">
+        <label for="taskCat">Category</label>
+        <select id="taskCat">
+          <option>Watering</option>
+          <option>Fertilizing</option>
+          <option>Pruning</option>
+          <option>Repotting</option>
+          <option>Monitoring</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="taskDue">Due date</label>
+        <input id="taskDue" type="date" />
+      </div>
+      <div>
+        <button id="addBtn" class="add-btn">Plant Task 🌱</button>
+      </div>
+    </section>
+
+    <!-- Board -->
+    <section class="board" aria-label="Task stages">
+      <div class="column" data-stage="0">
+        <div class="col-head">
+          <span class="pill seed">Seedlings 🌱</span>
+          <button class="btn secondary small" data-clear="0">Clear</button>
+        </div>
+        <div class="dropzone" id="col-0" aria-label="Seedlings"></div>
+      </div>
+      <div class="column" data-stage="1">
+        <div class="col-head">
+          <span class="pill grow">Growing 🌿</span>
+          <button class="btn secondary small" data-clear="1">Clear</button>
+        </div>
+        <div class="dropzone" id="col-1" aria-label="Growing"></div>
+      </div>
+      <div class="column" data-stage="2">
+        <div class="col-head">
+          <span class="pill harv">Harvested 🌳</span>
+          <button class="btn secondary small" data-clear="2">Clear</button>
+        </div>
+        <div class="dropzone" id="col-2" aria-label="Harvested"></div>
+      </div>
+    </section>
+
+    <!-- Friendly credit row with an illustration (unDraw) -->
+    <footer>
+      <p>Tip: Drag cards between columns or use the arrows on each card. Click ✏️ to edit. Everything is saved locally.</p>
+      <div>
+        <img alt="Gardening illustration" src="https://images.unsplash.com/photo-1501004318641-b39e6451bec6?q=80&w=600&auto=format&fit=crop" />
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    /* ===============================
+       Simple State & Persistence
+    ================================*/
+    const STAGES = ["Seedlings", "Growing", "Harvested"]; // 0..2
+    const ICONS = ["🌱","🌿","🌳"];
+
+    /** Task shape
+     * { id:string, title:string, category:string, due:string(ISO), stage:0|1|2, created:number }
+     */
+    let tasks = JSON.parse(localStorage.getItem('garden.tasks')||'[]');
+
+    function persist(){ localStorage.setItem('garden.tasks', JSON.stringify(tasks)); }
+
+    /* ===============================
+       UI Elements
+    ================================*/
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+    const titleEl = $('#taskTitle');
+    const catEl   = $('#taskCat');
+    const dueEl   = $('#taskDue');
+    const addBtn  = $('#addBtn');
+    const soundToggle = $('#soundToggle');
+
+    /* ===============================
+       Sounds (Web Audio — tiny, no files)
+    ================================*/
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    function blip(freq=660, time=0.08){
+      if(!soundToggle.checked) return;
+      const t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type='sine'; o.frequency.value=freq;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.3, t+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+time);
+      o.start(); o.stop(t+time+0.02);
+    }
+    const SND = {
+      plant: ()=>blip(520, .10),     // add
+      grow:  ()=>blip(680, .08),     // move forward
+      back:  ()=>blip(360, .08),     // move backward
+      done:  ()=>{ blip(660,.06); setTimeout(()=>blip(990,.07),60); }, // harvested
+      del:   ()=>blip(220, .09)
+    }
+
+    /* ===============================
+       Create Tasks
+    ================================*/
+    addBtn.addEventListener('click', ()=>{
+      const title = titleEl.value.trim();
+      if(!title){
+        titleEl.focus(); titleEl.style.boxShadow='0 0 0 3px #ef444433';
+        setTimeout(()=>titleEl.style.boxShadow='', 500);
+        return;
+      }
+      const task = {
+        id: crypto.randomUUID(),
+        title,
+        category: catEl.value,
+        due: dueEl.value || '',
+        stage: 0,
+        created: Date.now()
+      };
+      tasks.push(task); persist();
+      addCard(task, true); // true = animate in
+      titleEl.value='';
+      SND.plant();
+    });
+
+    /* ===============================
+       Render Helpers
+    ================================*/
+    const cols = [$('#col-0'), $('#col-1'), $('#col-2')];
+
+    function fmtDate(iso){
+      if(!iso) return '—';
+      const d = new Date(iso + 'T00:00:00');
+      return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+    }
+
+    function progressFor(stage){ return Math.round((stage/2)*100); }
+
+    function cardTemplate(task){
+      const overdue = task.due && (new Date(task.due) < new Date().setHours(0,0,0,0));
+      return `
+      <article class="card" draggable="true" data-id="${task.id}" aria-label="Task card">
+        <div class="displayWrap">
+          <div class="row titleRow">
+            <span class="plant" title="Stage">${ICONS[task.stage]}</span>
+            <span class="titleTxt">${escapeHtml(task.title)}</span>
+            <div class="controls">
+              <button class="iconbtn" data-act="back" title="Move back">⬅️</button>
+              <button class="iconbtn" data-act="fwd" title="Move forward">➡️</button>
+              <button class="iconbtn" data-act="edit" title="Edit">✏️</button>
+              <button class="iconbtn danger" data-act="del" title="Delete">🗑️</button>
+            </div>
+          </div>
+          <div class="row meta">
+            <span class="badge">${escapeHtml(task.category)}</span>
+            <span class="badge" title="Due date">📅 ${fmtDate(task.due)}</span>
+            ${overdue && task.stage!==2 ? '<span class="badge" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412" title="Overdue">⚠️ Overdue</span>' : ''}
+          </div>
+          <div class="progress" aria-label="Progress"><span style="width:${progressFor(task.stage)}%"></span></div>
+        </div>
+        <div class="editWrap">
+          <input class="editTitle" value="${escapeAttr(task.title)}" />
+          <select class="editCat">
+            ${["Watering","Fertilizing","Pruning","Repotting","Monitoring"].map(c=>`<option ${task.category===c?"selected":""}>${c}</option>`).join('')}
+          </select>
+          <input type="date" class="editDue" value="${task.due}" />
+          <button class="iconbtn" data-act="save" title="Save">💾</button>
+          <button class="iconbtn" data-act="cancel" title="Cancel">✖️</button>
+        </div>
+      </article>`
+    }
+
+    function addCard(task, animate=false){
+      const el = htmlToElement(cardTemplate(task));
+      attachCardEvents(el);
+      cols[task.stage].appendChild(el);
+      if(animate){
+        el.animate([
+          { transform:'scale(.96) translateY(8px)', opacity:0 },
+          { transform:'scale(1) translateY(0)', opacity:1 }
+        ], { duration:220, easing:'cubic-bezier(.2,.8,.2,1)' });
+      }
+    }
+
+    function refresh(){
+      cols.forEach(c=>c.innerHTML='');
+      tasks.sort((a,b)=>a.stage-b.stage || a.created-b.created).forEach(t=>addCard(t));
+    }
+
+    /* ===============================
+       Card Interactions
+    ================================*/
+    function attachCardEvents(card){
+      // Drag
+      card.addEventListener('dragstart', e=>{ card.classList.add('dragging'); e.dataTransfer.setData('text/plain', card.dataset.id); });
+      card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
+
+      // Button controls
+      card.addEventListener('click', e=>{
+        const act = e.target.closest('[data-act]')?.dataset.act; if(!act) return;
+        const id = card.dataset.id; const task = tasks.find(t=>t.id===id);
+        if(!task) return;
+        if(act==='fwd'){ if(task.stage<2){ task.stage++; persist(); moveCard(card, task); SND[task.stage===2?'done':'grow'](); } }
+        if(act==='back'){ if(task.stage>0){ task.stage--; persist(); moveCard(card, task); SND.back(); } }
+        if(act==='del'){
+          card.animate([{transform:'scale(1)',opacity:1},{transform:'scale(.9)',opacity:0}],{duration:150});
+          tasks = tasks.filter(t=>t.id!==id); persist(); SND.del(); setTimeout(refresh, 160);
+        }
+        if(act==='edit'){
+          card.classList.add('editing');
+        }
+        if(act==='cancel'){
+          card.classList.remove('editing');
+        }
+        if(act==='save'){
+          const title = card.querySelector('.editTitle').value.trim();
+          if(!title) return;
+          task.title = title;
+          task.category = card.querySelector('.editCat').value;
+          task.due = card.querySelector('.editDue').value;
+          persist();
+          card.classList.remove('editing');
+          // Re-render this card quickly by replacing its innerHTML
+          const fresh = htmlToElement(cardTemplate(task));
+          card.replaceWith(fresh); attachCardEvents(fresh);
+        }
+      });
+    }
+
+    function moveCard(card, task){
+      // update visual plant icon & progress
+      card.querySelector('.plant').textContent = ICONS[task.stage];
+      card.querySelector('.progress > span').style.width = progressFor(task.stage)+"%";
+      cols[task.stage].appendChild(card);
+      card.animate([{ transform:'translateY(-6px)', opacity:.9 },{ transform:'translateY(0)', opacity:1 }], { duration:180, easing:'ease-out' });
+    }
+
+    // Drag & Drop to columns
+    $$('.dropzone').forEach((zone, idx)=>{
+      zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', ()=> zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e=>{
+        e.preventDefault(); zone.classList.remove('dragover');
+        const id = e.dataTransfer.getData('text/plain');
+        const card = document.querySelector(`[data-id="${id}"]`);
+        const task = tasks.find(t=>t.id===id);
+        if(!card || !task) return;
+        const old = task.stage; task.stage = idx; persist();
+        cols[idx].appendChild(card);
+        if(idx>old) (idx===2?SND.done:SND.grow)(); else SND.back();
+        card.querySelector('.plant').textContent = ICONS[task.stage];
+        card.querySelector('.progress > span').style.width = progressFor(task.stage)+"%";
+      });
+    });
+
+    // Clear per column
+    $$('[data-clear]').forEach(btn=>btn.addEventListener('click',()=>{
+      const s = +btn.dataset.clear;
+      tasks = tasks.filter(t=>t.stage!==s); persist(); refresh();
+    }));
+
+    // Clear all
+    $('#clearAll').addEventListener('click',()=>{
+      if(confirm('Remove all tasks?')){ tasks = []; persist(); refresh(); }
+    });
+
+    // Helpers
+    function htmlToElement(html){ const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+    function escapeHtml(s){ return s.replace(/[&<>"]+/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+    function escapeAttr(s){ return s.replace(/"/g,'&quot;'); }
+
+    // Initial render
+    refresh();
+
+    /* ===============================
+       Fun: Floating Leaves (Canvas)
+    ================================*/
+    const canvas = document.getElementById('leavesCanvas');
+    const ctx2 = canvas.getContext('2d');
+    let W=canvas.width=innerWidth, H=canvas.height=innerHeight;
+    window.addEventListener('resize', ()=>{ W=canvas.width=innerWidth; H=canvas.height=innerHeight; });
+
+    const leaves = Array.from({length: 24}, ()=> newLeaf());
+    function newLeaf(){
+      return {
+        x: Math.random()*W,
+        y: -20 - Math.random()*H,
+        size: 12+Math.random()*14,
+        speed: 0.6+Math.random()*1.2,
+        drift: (Math.random()*0.6)+0.2,
+        rot: Math.random()*Math.PI*2,
+        rotSpd: (Math.random()*0.02)-0.01,
+        emoji: Math.random()<.5?"🍃":"🍂"
+      };
+    }
+
+    function draw(){
+      ctx2.clearRect(0,0,W,H);
+      for(const l of leaves){
+        ctx2.save();
+        ctx2.translate(l.x, l.y);
+        ctx2.rotate(l.rot);
+        ctx2.font = `${l.size}px serif`;
+        ctx2.fillText(l.emoji, 0, 0);
+        ctx2.restore();
+        l.y += l.speed; l.x += Math.sin(performance.now()/800 + l.y/80)*l.drift; l.rot += l.rotSpd;
+        if(l.y > H+40){ Object.assign(l, newLeaf(), { y:-20 }); }
+      }
+      requestAnimationFrame(draw);
+    }
+    draw();
+
+    // Accessibility: allow Enter to trigger add
+    titleEl.addEventListener('keydown', e=>{ if(e.key==='Enter') addBtn.click(); });
+  </script>
+</body>
+</html>
